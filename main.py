@@ -3,7 +3,7 @@ from pygame.locals import *
 
 pygame.init()
 fpsClock = pygame.time.Clock()
-FPS = 10
+FPS = 60
 
 # window surface object
 WIN_WIDTH  = 480
@@ -14,10 +14,14 @@ pygame.display.set_caption("Jumpy")
 # world constants
 # basing these things off of the window means resizing can be an option.
 # you can tweak these until the physics feel right
-GRAVITY       = WIN_HEIGHT / 2000
-TERM_VELOCITY = WIN_HEIGHT / 20
-ENT_WIDTH     = WIN_HEIGHT / 10
-ENT_HEIGHT    = WIN_HEIGHT / 10
+GRAVITY         = WIN_HEIGHT / 2000
+TERM_VELOCITY   = WIN_HEIGHT / 20
+MAX_PLAYER_XVEL = WIN_HEIGHT / 60
+PLAYER_ACC      = WIN_HEIGHT / 1500
+FRICTION        = WIN_HEIGHT / 3000
+JUMPVEL         = WIN_HEIGHT / -60
+ENT_WIDTH       = WIN_HEIGHT / 10
+ENT_HEIGHT      = WIN_HEIGHT / 10
 
 # colors
 red    = pygame.Color(255,123,123)
@@ -81,10 +85,12 @@ class Creature(Entity):
         self.walls = walls
 
     def collide(self):
-        collisions = pygame.sprite.spritecollide(self, self.walls, False)
-        # Need to somehow keep character grounded without sacrificing the ability to fall
-        if not collisions:
+        # if it's grounded, we're going to move it down one pixel to force a collision with the ground
+        # if there's no ground, then it'll just fall like it should!
+        if self.grounded:
             self.grounded = False
+            self.rect.y += 1
+        collisions = pygame.sprite.spritecollide(self, self.walls, False)
         for block in collisions:
             direction = collision_direction(self.rect, block.rect)
             if direction == 'bottom':
@@ -102,28 +108,29 @@ class Creature(Entity):
     def update(self):
         Entity.update(self)
         self.collide()
+        print("grounded -- {}".format(self.grounded))
 
 
 class Player(Creature):
     def __init__(self, x, y, walls):
         Creature.__init__(self, red, x, y, walls)
-        self.max_xvel = 5
+        self.max_xvel = MAX_PLAYER_XVEL
         # -1: left, 0: neither, 1: right
         self.direction = 0
 
     def update(self):
-        self.xvel += self.direction / 5
+        self.xvel += self.direction * (PLAYER_ACC)
         if abs(self.xvel) > self.max_xvel:
             self.xvel = self.max_xvel * self.direction
         # slow down
         if (abs(self.xvel) != 0) and self.grounded:
-            self.xvel -= 0.1 * (self.xvel / abs(self.xvel))
+            self.xvel -= FRICTION * (self.xvel / abs(self.xvel))
             self.xvel = round(self.xvel, 1)
         Creature.update(self)
 
     def jump(self):
         self.grounded = False
-        self.yvel = -5
+        self.yvel = JUMPVEL
 
 # controller class
 class Controller():
