@@ -24,7 +24,22 @@ blue   = pygame.Color(125,148,224)
 yellow = pygame.Color(255,219,127)
 backgr = pygame.Color(110,110,110)
 black  = pygame.Color(0,0,0)
-white  = pygame.Color(255, 255, 255)        
+white  = pygame.Color(255, 255, 255)
+
+# determines collision direction
+def collision_direction(subj, obj):
+    bottom = abs(subj.bottom - obj.top)
+    top    = abs(subj.top - obj.bottom)
+    left   = abs(subj.left - obj.right)
+    right  = abs(subj.right - obj.left)
+
+    direction = min([bottom, top, left, right])
+
+    if direction == bottom: return "bottom"
+    if direction == top: return "top"
+    if direction == left: return "left"
+    if direction == right: return "right"
+    
 
 #entities
 class Entity(pygame.sprite.Sprite):
@@ -39,6 +54,7 @@ class Entity(pygame.sprite.Sprite):
 
         self.gravity = gravity
         self.yvel = 0
+        self.xvel = 0
 
         self.grounded = False
 
@@ -51,6 +67,8 @@ class Entity(pygame.sprite.Sprite):
                 self.yvel += GRAVITY
                 if self.yvel > TERM_VELOCITY:
                     self.yvel = TERM_VELOCITY
+        if self.xvel != 0:
+            self.rect.x += self.xvel
 
 class Block(Entity):
     def __init__(self, x, y):
@@ -60,41 +78,95 @@ class Creature(Entity):
     def __init__(self, color, x, y, walls):
         Entity.__init__(self, color, x, y, gravity=True)
         self.walls = walls
-    
-    def collide_walls(self):
-        for block in pygame.sprite.spritecollide(self, self.walls, False):
-            if (block.rect.top <= self.rect.bottom) and (block.rect.bottom >= self.rect.bottom):
+
+    def collide(self):
+        collisions = pygame.sprite.spritecollide(self, self.walls, False)
+        # UNCOMMENT THE FOLLOWING TWO LINES TO ALLOW CREATURES TO FALL
+        #if not collisions:
+        #    self.grounded = False
+        for block in collisions:
+            direction = collision_direction(self.rect, block.rect)
+            if direction == 'bottom':
                 self.rect.bottom = block.rect.top
                 self.grounded = True
-            if (block.rect.bottom >= self.rect.top) and (block.rect.top <= self.rect.top):
+            elif direction == 'top':
                 self.rect.top = block.rect.bottom
-                self.yvel = 0
+            elif direction == 'left':
+                self.rect.left = block.rect.right
+                self.xvel = 0
+            elif direction == 'right':
+                self.rect.right = block.rect.left
+                self.xvel = 0
 
     def update(self):
-        self.collide_walls()
+        self.collide()
         Entity.update(self)
 
 class Player(Creature):
     def __init__(self, x, y, walls):
         Creature.__init__(self, red, x, y, walls)
+        self.max_xvel = 5
+        # -1: left, 0: neither, 1: right
+        self.direction = 0
+
+    def update(self):
+        self.xvel += self.direction / 5
+        if abs(self.xvel) > self.max_xvel:
+            self.xvel = self.max_xvel * self.direction
+        # slow down
+        if (abs(self.xvel) != 0) and self.grounded:
+            self.xvel -= 0.1 * (self.xvel / abs(self.xvel))
+            self.xvel = round(self.xvel, 1)
+        Creature.update(self)
+        print(self.xvel)
 
     def jump(self):
         self.grounded = False
         self.yvel = -5
 
+# controller class
+class Controller():
+    def __init__(self, player):
+        self.player = player
+        self.jump  = [K_SPACE, K_w, K_UP]
+        self.left  = [K_a, K_LEFT]
+        self.right = [K_d, K_RIGHT]
+
+    def update(self):
+        for event in pygame.event.get():
+            if (event.type == QUIT) or (event.type == KEYDOWN and event.key == K_ESCAPE):
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONUP:
+                global run
+                run = True
+            elif event.type == KEYDOWN:
+                if event.key in self.jump:
+                    player.jump()
+                elif event.key in self.left:
+                    player.direction = -1
+                elif event.key in self.right:
+                    player.direction = 1
+            elif event.type == KEYUP:
+                if event.key in (self.left + self.right):
+                    player.direction = 0
 
 # game loop
 blocks = pygame.sprite.Group()
-blocks.add(Block(125, 200))
-blocks.add(Block(125, 10))
-blocks.add(Block(225, 200))
+for i in range(0,12):
+    blocks.add(Block(100 + i*25, 275))
+    blocks.add(Block(100 + i*25, 20))
+blocks.add(Block(275, 250))
+blocks.add(Block(275, 225))
+blocks.add(Block(275, 200))
 
 player = Player(125, 75, blocks)
 creatures = pygame.sprite.Group()
 creatures.add(Entity(blue, 125, 100))
 creatures.add(player)
-creatures.add(Creature(yellow, 225, 10, blocks))
+creatures.add(Creature(yellow, 225, 65, blocks))
 
+controller = Controller(player)
 
 # for testing. when you click the game, it will start. will eventually be a start menu.
 run = False
@@ -102,14 +174,7 @@ run = False
 while True:
     windowSurface.fill(backgr)
 
-    for event in pygame.event.get():
-        if (event.type == QUIT) or (event.type == KEYDOWN and event.key == K_ESCAPE):
-            pygame.quit()
-            sys.exit()
-        elif event.type == pygame.MOUSEBUTTONUP:
-            run = True
-        elif event.type == KEYDOWN and event.key == K_SPACE:
-            player.jump()
+    controller.update()
     
     # update creatures and check for collision
     if run:
