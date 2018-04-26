@@ -3,6 +3,7 @@ from pygame.locals import *
 
 pygame.init()
 fpsClock = pygame.time.Clock()
+FPS = 10
 
 # window surface object
 WIN_WIDTH  = 480
@@ -81,9 +82,9 @@ class Creature(Entity):
 
     def collide(self):
         collisions = pygame.sprite.spritecollide(self, self.walls, False)
-        # UNCOMMENT THE FOLLOWING TWO LINES TO ALLOW CREATURES TO FALL
-        #if not collisions:
-        #    self.grounded = False
+        # Need to somehow keep character grounded without sacrificing the ability to fall
+        if not collisions:
+            self.grounded = False
         for block in collisions:
             direction = collision_direction(self.rect, block.rect)
             if direction == 'bottom':
@@ -99,8 +100,9 @@ class Creature(Entity):
                 self.xvel = 0
 
     def update(self):
-        self.collide()
         Entity.update(self)
+        self.collide()
+
 
 class Player(Creature):
     def __init__(self, x, y, walls):
@@ -118,7 +120,6 @@ class Player(Creature):
             self.xvel -= 0.1 * (self.xvel / abs(self.xvel))
             self.xvel = round(self.xvel, 1)
         Creature.update(self)
-        print(self.xvel)
 
     def jump(self):
         self.grounded = False
@@ -185,4 +186,4 @@ while True:
     blocks.draw(windowSurface)
     creatures.draw(windowSurface)
     pygame.display.update()
-    fpsClock.tick(60)
+    fpsClock.tick(FPS)
